@@ -1,3 +1,6 @@
+# NOTE: drop me into the CarND-LaneLines-P1 directory and run `python pipeline.py`
+# results will be written out to disk
+
 import math
 import os
 
