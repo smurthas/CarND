@@ -5,6 +5,9 @@ starting from NVIDIAs DAVE 2 network architecture. Given that it worked in the
 real world, I figured it would at least be a functional starting point for
 simulated autonomous driving (which it was).
 
+Here is [a video](https://youtu.be/pEzpXd7A1Zo) of it doing two laps on my 15
+inch Macbook Pro.
+
 ## Network Architecture
 The network architecture is comprised of 5 convolutional layers followed by a
 flattening layer and then 3 fully connected layers, finally outputing a single
