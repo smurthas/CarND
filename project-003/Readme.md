@@ -22,6 +22,12 @@ I was able to train this network on an AWS g2.xlarge machine on 130k images at
 every 10-15 minutes, which helped me learn more rapidly about what was working
 and what was not.
 
+I experimented with adding dropout between the layers, however I found the my
+model simply "converged" on a single output answer for all inputs, drastically
+underfitting the model to the data and since I was only shooting for the first
+track (see also Summary section re: track 2), I did not have many issues with
+overfitting.
+
 ## Data Sets
 
 I experimented with 4 total data sets for training and validation, while using
@@ -102,4 +108,12 @@ project:
 * *Track 2*: I tried this track a bit, but found my model could not complete it.
  I think with more work to reduce over-fitting and possibly some improvements to
  datasets and hyper parameters, the model could complete track 2.
+* *Psuedo-random initialization*: I found that training was
+ highly non-repeatable because the initialization of the model parameters was
+ random. As a result, training the same model on the same data more than once
+ resulted in very different performance in the simulator. To make this process
+ more predictable (and therefore more in the engineers control), I would like to
+ have experimented with making these inputs psuedo random and making their
+ random seed a hyper paramenter (which could be meta-optimized, like I described
+ above).
 
