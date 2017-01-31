@@ -42,9 +42,9 @@ and auotmated manner.
 
 The datasets were:
 
-1. *"bc_track"*: clean laps of track 1 done by __________, using the center
-images as is, while adding 0.25 and -0.25 to the steering angles of the left and
-right images respectively.
+1. *"bc_track"*: clean laps of track 1 done by Joshua Owoyemi (@toluwajosh,
+thank you Joshua!!), using the center images as is, while adding 0.25 and -0.25
+to the steering angles of the left and right images respectively.
 
 2. *"udacity"*: the udacity provided data set, with the same center, left, and
 right processing.
@@ -104,13 +104,16 @@ project:
 
 * *Simpler/smaller networks*: I suspect this might make training much faster and
  also might make the network make predictions faster
+
 * *More repeatable tests*: I would certainly work to create a set of test data
  and run all models against it as a comparison. I would even like to try a
  meta-optimization of automatically running and tuning hyper parameters to
  minimize loss on the test set.
+
 * *Track 2*: I tried this track a bit, but found my model could not complete it.
  I think with more work to reduce over-fitting and possibly some improvements to
  datasets and hyper parameters, the model could complete track 2.
+
 * *Psuedo-random initialization*: I found that training was
  highly non-repeatable because the initialization of the model parameters was
  random. As a result, training the same model on the same data more than once
