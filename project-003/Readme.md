@@ -22,7 +22,7 @@ I was able to train this network on an AWS g2.xlarge machine on 130k images at
 every 10-15 minutes, which helped me learn more rapidly about what was working
 and what was not.
 
-# Data Sets
+## Data Sets
 
 I experimented with 4 total data sets for training and validation, while using
 the simulator itself for testing. Since the goal was to build a network that
@@ -59,6 +59,15 @@ spaces and found there to be very litte effect on the performance. Since all of
 the data I used could fit into the 15GB of memory on the AWS instance, I did not
 need a fit generator.
 
+Finally, each time, all of the training data was shuffled and then 20% was split
+off for validation.
+
+## Training
+
+The model using an Adam optimizer and mean square error as its loss function and
+tested with a range of 5 to 50 epochs, ultimately settling on 10 as a compromise
+between minimizing training loss vs reducing overfitting.
+
 I had mixed success with the datasets. I found that just using "bc_track" alone
 was enough to make it around the track, although the car swerved a lot and
 nearly drove onto the curb on the tightest right hand corner of the track. As a
@@ -70,7 +79,7 @@ time, faster training, and a more repeatable test procedure, I definitely think
 I could generate more/different data and improve the model. Alas, I stopped
 tinkering and testing at a certain point and called it "done".
 
-# Summary
+## Summary
 I found this to be a challenging adn engaging project. I started off nearly
 feeling like I would not be able to complete the project, but finished feeling
 like I had a *MUCH* stronger grasp on the concepts of NNs, training data,
