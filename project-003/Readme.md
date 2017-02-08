@@ -5,7 +5,7 @@ starting from NVIDIAs DAVE 2 network architecture. Given that it worked in the
 real world, I figured it would at least be a functional starting point for
 simulated autonomous driving (which it was).
 
-Here is [a video](https://youtu.be/pEzpXd7A1Zo) of it doing two laps on my 15
+Here is [a video](https://youtu.be/P0AbV0hr3zA) of it doing two laps on my 15
 inch Macbook Pro.
 
 ## Network Architecture
@@ -29,7 +29,8 @@ I experimented with adding dropout between the layers, however I found the my
 model simply "converged" on a single output answer for all inputs, drastically
 underfitting the model to the data and since I was only shooting for the first
 track (see also Summary section re: track 2), I did not have many issues with
-overfitting.
+overfitting. Since the project required it, I included a Dropout layer and
+simply tuned the percentage down to the point that it did not cause problems.
 
 ## Data Sets
 
