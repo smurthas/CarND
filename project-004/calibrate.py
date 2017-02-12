@@ -3,12 +3,14 @@ import sys
 
 import numpy as np
 import cv2
-#import matplotlib
-#matplotlib.use('TkAgg')
-#import matplotlib.pyplot as plt
 from moviepy.editor import VideoFileClip
 import image_util as iu
-#import matplotlib.image as mpimg
+
+
+# As taken from example top down images and US highway specs of 3.7m lane width
+# and 3m white dashed line length
+m_px_x = 3.7/420.
+m_px_y = 3. / 28.
 
 
 def create_perspective_transforms():
@@ -86,144 +88,69 @@ def top_down_to_ahead(img):
 def crop(img, x1, y1, x2, y2):
     return img[y1:y2, x1:x2]
 
-def histogram(img, y_start, y_end):
-    """ calculates a histogram of a row of an image """
-    if y_start <= 1.0 and y_end <= 1.0:
-        y_start = int(img.shape[0]*y_start)
-        y_end = int(img.shape[0]*y_end*0.999)
-    histogram = np.sum(img[int(y_start):int(y_end), :], axis=0)
-    return histogram / np.max(histogram)
-
-def histogram_max(hist, start, end):
-    if start <= 1.0 and end <= 1.0:
-        start = int(hist.shape[0] * start)
-        end = int(hist.shape[0] * end * 0.999)
-    return start + np.argmax(hist[start:end])
-
-def find_line(img, bin_start, bin_stop, bin_size, left_start, right_start):
-    #gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    gray = img[:, :, 0] # red channel
-    pts = []
-    for start in np.arange(bin_start-bin_size, bin_stop, -1*bin_size):
-        end = start + bin_size
-        hist = histogram(gray, start, end)
-        hmax = histogram_max(hist, left_start, right_start)
-        pts.append((hmax, (gray.shape[0]*(start + end)/2)))
-
-    return pts
-
-def find_side_line(img, center_start, start_width=0.06, bin_size=0.1):
-    # left side
-    found_center = np.array(find_line(img, 1.0, 0.69, 0.3, center_start-start_width, center_start+start_width))[0][0] / img.shape[1]
-    #print(found_center)
-    new_width = start_width*0.75
-    left_pts = np.array(find_line(img, 1.0, 0.7, bin_size, found_center-new_width, found_center+new_width))
-    left_x_mid = np.average(left_pts[:, 0])/img.shape[1]
-    #print(left_x_mid)
-    left_pts = np.append(left_pts, np.array(find_line(img, 0.7, 0.5999, bin_size, left_x_mid-start_width, left_x_mid+start_width)), 0)
-    #print(left_pts)
-    xs = left_pts[:, 0]
-    ys = left_pts[:, 1]
-    pl = np.polyfit(ys, xs, 2)
-    y = 0.55*img.shape[0]
-    #print(y)
-    left_x_proj = (pl[0]*y*y + pl[1]*y + pl[2])/img.shape[1]
-    #print(left_x_proj)
-    left_pts = np.append(left_pts, np.array(find_line(img, 0.6, 0.4999, bin_size, left_x_proj-start_width, left_x_proj+start_width)), 0)
-    xs = left_pts[:, 0]
-    ys = left_pts[:, 1]
-    pl = np.polyfit(ys, xs, 2)
-    return pl, left_pts
-
-def coords_of_non_zero(img):
-    xs = []
-    ys = []
-
-    for y in range(0, img.shape[0]-1):
-        for x in range(0, img.shape[1]-1):
-            if np.sum(img[y][x]) > 0:
-                xs.append(x)
-                ys.append(y)
-
-    return xs, ys
-
-def mask_for_poly(img, polyfit, y_min=0.3, y_max=0.98, width=0.15, color=(255, 255, 255)):
+def mask_for_poly(img, polyfit, y_min=0.4, y_max=0.99, width=0.15, color=(255, 255, 255)):
+    """ creates a mask that follows the polynomial from the bottom of the image
+    towards to top, stopping at y_min """
     if y_min < 1 and y_max <= 1.0:
         y_min = int(img.shape[0]*y_min)
         y_max = int(img.shape[0]*y_max)
-    offset = int(img.shape[1]*width/2.)
+    base_width_pix = int(img.shape[1]*width/2.)
 
     mask = np.zeros_like(img)
     for y in range(y_min, y_max-1):
+        offset = int(base_width_pix * (1 - y/y_max + y_min/y_max))
         x = polyfit[0]*y*y + polyfit[1]*y + polyfit[2]
         x = int(min(img.shape[1], max(0, x)))
         x_l = x - offset
         x_r = x + offset
-        for x_set in range(x_l, x_r-1):
-            mask[y][x_set] = color
+        mask[y][x_l:x_r-1] = color
 
     return mask
 
-def find_lines(img):
-    global pl_avg, pr_avg
-    pl, left_pts = find_side_line(img, 0.34)
-    pr, right_pts = find_side_line(img, 0.67)
-    #print('pl', pl, type(pl))
-    if pl_avg is None:
-        pl_avg = pl
-    if pr_avg is None:
-        pr_avg = pr
-
-    pl_avg = pl_avg*mwa_alpha + pl*(1.-mwa_alpha)
-    pr_avg = pr_avg*mwa_alpha + pr*(1.-mwa_alpha)
+def radius_of_curvature(polyfit, y_eval):
+    return ((1 + (2*polyfit[0]*y_eval + polyfit[1])**2)**1.5) / np.absolute(2*polyfit[0])
 
 
-    bin_size = 0.1
-    rect_side = img.shape[0]*bin_size/2
-    for center in left_pts:
-        pt1 = (int(center[0]-rect_side), int(center[1]-rect_side))
-        pt2 = (int(center[0]+rect_side), int(center[1]+rect_side))
-        cv2.rectangle(img, pt1, pt2, (255, 255, 255))
+def get_line_from_filtered(filtered, poly, m_px_y, m_px_x):
+    y_eval = filtered.shape[0]-1 - 50
 
-    for center in right_pts:
-        pt1 = (int(center[0]-rect_side), int(center[1]-rect_side))
-        pt2 = (int(center[0]+rect_side), int(center[1]+rect_side))
-        cv2.rectangle(img, pt1, pt2, (255, 255, 255))
+    mask = mask_for_poly(filtered, poly)
+    masked_filtered = cv2.bitwise_and(filtered, mask)
+    nonz = np.nonzero(cv2.cvtColor(masked_filtered, cv2.COLOR_BGR2GRAY))
+    pf = np.polyfit(nonz[0], nonz[1], 2)
+    pf_m = np.polyfit(nonz[0]*m_px_y, nonz[1]*m_px_x, 2)
+    r_curv = radius_of_curvature(pf_m, y_eval*m_px_y)
 
-    filtered = filter_old(img)
-    #x_max = filtered.shape[1]
-    #x_mid = int(x_max / 2)
-    #y_max = filtered.shape[0]
-    #y_mid = int(y_max / 2)
+    return mask, masked_filtered, pf, r_curv
 
-    #left_mask = np.array([[(x_max*0.2, y_mid), (x_mid, y_mid), (x_max*0.4, y_max), (x_max*0.3, y_max)]], dtype=np.int32)
+def find_lines(img, debug=False):
+    global pl_avg, pr_avg, r_curv_avg
 
-    mask = mask_for_poly(filtered, pl_avg)
+    filtered = threshold_binary_filter(img)
 
-    cv2.addWeighted(mask, 0.1, img, 1., 0, img)
+    mask_left, masked_filtered_left, pfl, r_curv_l = \
+        get_line_from_filtered(filtered, pl_avg, m_px_y, m_px_x)
+    mask_right, masked_filtered_right, pfr, r_curv_r = \
+        get_line_from_filtered(filtered, pr_avg, m_px_y, m_px_x)
 
-    masked_filtered_left = cv2.bitwise_and(filtered, mask)
+    pl_avg = pl_avg*mwa_alpha + pfl*(1.-mwa_alpha)
+    pr_avg = pr_avg*mwa_alpha + pfr*(1.-mwa_alpha)
+    r_curv_avg = r_curv_avg*mwa_alpha + (r_curv_l + r_curv_r)/2.*(1.-mwa_alpha)
 
-    nonz = np.nonzero(cv2.cvtColor(masked_filtered_left, cv2.COLOR_BGR2GRAY))
-    xls = nonz[1]
-    yls = nonz[0]
-    pfl = np.polyfit(yls, xls, 2)
-    iu.draw_polyfit(img, pfl, color=[255, 0, 255])
+    if debug:
+        alpha = 0.8
+        img = cv2.addWeighted(masked_filtered_left, alpha, img, 1., 0)
+        img = cv2.addWeighted(masked_filtered_right, alpha, img, 1., 0)
 
-    alpha = 0.8
-    cv2.addWeighted(masked_filtered_left, alpha, img, 1., 0, img)
+        img = cv2.addWeighted(mask_left, 0.1, img, 1., 0)
+        img = cv2.addWeighted(mask_right, 0.1, img, 1., 0)
 
-    return pl_avg, pr_avg
+    return pl_avg, pr_avg, r_curv_avg, mask_left, mask_right, masked_filtered_left, masked_filtered_right
 
-#def filter(img, h_center=98):
-#    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
-#    h_channel = hsv[:, :, 0]
-#    h_channel = np.square(255. - (np.absolute(h_channel-h_center)/180.*255.)) / 255.
-#    return np.array(np.dstack(( h_channel, h_channel, h_channel))).astype(np.uint8)
-
-def filter_old(img, s_thresh=(170, 255), h_thresh=(18, 24), sx_thresh=(20, 100)):
-#def filter(img, s_thresh=(120, 255), h_thresh=(10, 34), sx_thresh=(10, 150)):
-    img = np.copy(img)
+def threshold_binary_filter(img, s_thresh=(170, 255), h_thresh=(18, 24), sx_thresh=(20, 100)):
+#def threshold_binary_filter(img, s_thresh=(120, 255), h_thresh=(10, 34), sx_thresh=(10, 150)):
+    """ create a binary image from a combination of the saturation and hue
+    channels, as well as a sobel_x threshold """
 
     # Convert to HSV color space and separate the V channel
     hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
@@ -251,52 +178,83 @@ def filter_old(img, s_thresh=(170, 255), h_thresh=(18, 24), sx_thresh=(20, 100))
     # Stack each channel
     # Note color_binary[:, :, 0] is all 0s, effectively an all black image. It might
     # be beneficial to replace this channel with something else.
-    #color_binary = np.dstack(( h_binary, np.zeros_like(sxbinary), np.zeros_like(s_binary)))
     color_binary = np.array(np.dstack((h_binary, sxbinary, s_binary))*255).astype(np.uint8)
     color_binary = cv2.cvtColor(color_binary, cv2.COLOR_RGB2BGR)
     return color_binary
 
-def pipeline_debug(image):
-    """Just a simply wrapper to call the pipeline function with the debug flag
-    set to True since the `fl_image` function just passes the image"""
-    return pipeline(image, True)
-
-#def pipeline_on_image(img, outfilename, mtx, dist):
-
 pl_avg = np.array([0., 0., 470.])
 pr_avg = np.array([0., 0., 810.])
-MWA_MAX = 0.8
+r_curv_avg = 0
+MWA_MAX = 0.9
 mwa_alpha = 0.
 frame = 0
+
 def pipeline(img, debug=False):
     global mwa_alpha, frame
     frame = frame + 1
     mwa_alpha = MWA_MAX - (MWA_MAX/(frame + 0.2))
 
-    mtx = cam_matrix
-    dist = distortion
-    undistorted = cv2.undistort(img, mtx, dist, None, mtx)
+    undistorted = cv2.undistort(img, cam_matrix, distortion, None, cam_matrix)
     top_down = ahead_to_top_down(undistorted)
     cropped = crop(top_down, 0, 250, 1280, 680)
 
-    #filtered = filter_old(cropped)
-    #find_lines(filtered)
-    pl, pr = find_lines(cropped)
-    iu.draw_polyfit(cropped, pl)
-    iu.draw_polyfit(cropped, pr)
-    #for y in range(0, cropped.shape[0]-1):
-    #    xl = min(max(pl[0]*y*y + pl[1]*y + pl[2], 0), cropped.shape[1]-1)
-    #    xr = min(max(pr[0]*y*y + pr[1]*y + pr[2], 0), cropped.shape[1]-1)
-    #    cropped[y][xl] = [0, 255, 0]
-    #    cropped[y][xr] = [0, 255, 0]
-    return cropped
+    pl, pr, r_curv, mask_left, mask_right, masked_filtered_left, masked_filtered_right = \
+        find_lines(cropped, debug)
 
-def undistort_and_warp_chess(filename):
-    img, c_corners, cam_matrix, distortion = calculate_calibration(filename)
-    undistorted = cv2.undistort(img, cam_matrix, distortion, None, cam_matrix)
-    src, dst = get_chessboard_corners_corners(c_corners)
-    warped_image = warp_perspective(undistorted, src, dst)
-    return warped_image
+    y_pos = cropped.shape[0] - 10
+    lateral_position = -1.0 * m_px_x * ((pl[0]*y_pos**2 + pl[1]*y_pos + pl[2] + \
+        pr[0]*y_pos**2 + pr[1]*y_pos + pr[2]) / 2.0 - cropped.shape[1]/2.0)
+
+    polys = np.zeros_like(cropped)
+    iu.draw_polyfit(polys, pl, color=[255, 0, 0], width=19)
+    iu.draw_polyfit(polys, pr, color=[0, 0, 255], width=19)
+    iu.fill_between_polys(polys, pl, pr)
+    polys_full = np.zeros_like(top_down)
+    drop_poly_top = 150
+    polys_full[250 + drop_poly_top:680] = polys[drop_poly_top:]
+    polys_ahead = top_down_to_ahead(polys_full)
+    undistorted = cv2.addWeighted(polys_ahead, 0.7, undistorted, 1.0, 1.4)
+
+    overlay_box = np.copy(undistorted)
+    cv2.rectangle(overlay_box, (0, 0), (1280, 86+20), (0, 0, 0), thickness=-1)
+    undistorted = cv2.addWeighted(overlay_box, 0.6, undistorted, 0.4, 0)
+
+    inset_w = 256
+    inset_h = 86
+    margin = 10
+    x_start = 100
+    inset_size = (inset_w, inset_h)
+
+    overlay = np.copy(undistorted)
+    masks = cv2.resize(cv2.addWeighted(mask_left, 0.5, mask_right, 0.5, 0), inset_size)
+
+    inset_top_down = cv2.resize(cropped, inset_size)
+    inset_top_down = cv2.addWeighted(masks, 0.5, inset_top_down, 1.0, 0)
+    iu.draw_at_position(inset_top_down, overlay, (x_start + margin, margin))
+
+    inset_polys = cv2.resize(polys, inset_size)
+    iu.draw_at_position(inset_polys, overlay, (x_start + 2*margin + inset_w, margin))
+
+    inset_binary = cv2.addWeighted(masked_filtered_left, 0.5, masked_filtered_right, 0.5, 0)
+    inset_binary = cv2.resize(inset_binary, inset_size)
+    inset_binary = cv2.addWeighted(inset_binary, 0.7, masks, 0.2, 0)
+    iu.draw_at_position(inset_binary, overlay, (x_start + 3*margin + 2*inset_w, margin))
+
+    font_face = cv2.FONT_HERSHEY_SIMPLEX
+    x_text = x_start + 4*margin + 3*inset_w
+    cv2.putText(overlay, 'Radius: %.1fm' % r_curv, (x_text, 40), font_face, 0.75, \
+        (255, 255, 255), 1, cv2.LINE_AA)
+    cv2.putText(overlay, 'Offset: %.2fm' % lateral_position, (x_text, 80), \
+        font_face, 0.75, (255, 255, 255), 1, cv2.LINE_AA)
+
+    undistorted = cv2.addWeighted(overlay, 0.9, undistorted, 0.1, 0)
+
+    return undistorted
+
+def pipeline_debug(image):
+    """Just a simply wrapper to call the pipeline function with the debug flag
+    set to True since the `fl_image` function just passes the image"""
+    return pipeline(image, True)
 
 def process_video(in_filename, out_filename, debug=False):
     """read in a video, processes it with the provided debug setting, and then
@@ -312,10 +270,4 @@ def process_video(in_filename, out_filename, debug=False):
 
 calib_img, c_corners, cam_matrix, distortion = calculate_calibration(sys.argv[1])
 
-#for file in sys.argv[2:]:
-#    outfile_name = 'output/top_down_' + file.split('/')[-1]
-#    print(outfile_name)
-#    cv2.imwrite(outfile_name, pipeline(cv2.imread(file)))
-
 process_video(sys.argv[2], sys.argv[3])
-
