@@ -36,34 +36,6 @@ def create_perspective_transforms():
 M_ahead_to_top_down, M_top_down_to_ahead = create_perspective_transforms()
 
 
-def calculate_calibration(filename, nx=9, ny=6):
-    """ calculates the camera distorion given a filename with a 9x6
-    checkerboard """
-    # Make a list of calibration images
-    img = cv2.imread(filename)
-
-    # Convert to grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # Find the chessboard corners
-    objpoints = []
-    imgpoints = []
-    objp = np.zeros((ny*nx, 3), np.float32)
-    objp[:, :2] = np.mgrid[0:nx, 0:ny].T.reshape(-1, 2)
-
-    ret, corners = cv2.findChessboardCorners(gray, (nx, ny), None)
-    if not ret:
-        return None
-
-    imgpoints.append(corners)
-    objpoints.append(objp)
-
-    ret, mtx, dist, a, b = cv2.calibrateCamera(
-        objpoints, imgpoints,
-        gray.shape[::-1], None, None
-    )
-    return img, corners, mtx, dist
-
 def get_chessboard_corners_corners(corners, nx=9, ny=6):
     """ returns the chessboard corners as src and dst arrays """
     corners = np.reshape(corners, (ny, nx, 1, 2))
@@ -274,6 +246,6 @@ def process_video(in_filename, out_filename, debug=False):
 
     clip.write_videofile(out_filename, audio=False)
 
-calib_img, c_corners, cam_matrix, distortion = calculate_calibration(sys.argv[1])
+calib_img, c_corners, cam_matrix, distortion = iu.calculate_calibration(sys.argv[1])
 
 process_video(sys.argv[2], sys.argv[3])

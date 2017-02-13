@@ -46,3 +46,31 @@ def draw_at_position(inset, onto, at):
     x_end = x_start + inset.shape[1]
     y_end = y_start + inset.shape[0]
     onto[y_start:y_end, x_start:x_end] = inset
+
+def calculate_calibration(filename, nx=9, ny=6):
+    """ calculates the camera distorion given a filename with a 9x6
+    checkerboard """
+    # Make a list of calibration images
+    img = cv2.imread(filename)
+
+    # Convert to grayscale
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Find the chessboard corners
+    objpoints = []
+    imgpoints = []
+    objp = np.zeros((ny*nx, 3), np.float32)
+    objp[:, :2] = np.mgrid[0:nx, 0:ny].T.reshape(-1, 2)
+
+    ret, corners = cv2.findChessboardCorners(gray, (nx, ny), None)
+    if not ret:
+        return None
+
+    imgpoints.append(corners)
+    objpoints.append(objp)
+
+    ret, mtx, dist, a, b = cv2.calibrateCamera(
+        objpoints, imgpoints,
+        gray.shape[::-1], None, None
+    )
+    return img, corners, mtx, dist
