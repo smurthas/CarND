@@ -10,7 +10,7 @@ import image_util as iu
 # As taken from example top down images and US highway specs of 3.7m lane width
 # and 3m white dashed line length
 m_px_x = 3.7/420.
-m_px_y = 3. / 28.
+m_px_y = 3. / 63.
 
 
 def create_perspective_transforms():
@@ -26,8 +26,10 @@ def create_perspective_transforms():
 
     x1_out = 440
     x2_out = 850
+
+    y1_out = 100
     src = np.float32([[x1_t, y1], [x2_t, y1], [x2_b, y2], [x1_b, y2]])
-    dst = np.float32([[x1_out, y1], [x2_out, y1], [x2_out, y2], [x1_out, y2]])
+    dst = np.float32([[x1_out, y1_out], [x2_out, y1_out], [x2_out, y2], [x1_out, y2]])
     return cv2.getPerspectiveTransform(src, dst), \
         cv2.getPerspectiveTransform(dst, src)
 
@@ -88,7 +90,7 @@ def top_down_to_ahead(img):
 def crop(img, x1, y1, x2, y2):
     return img[y1:y2, x1:x2]
 
-def mask_for_poly(img, polyfit, y_min=0.4, y_max=0.99, width=0.15, color=(255, 255, 255)):
+def mask_for_poly(img, polyfit, y_min=0.2, y_max=0.99, width=0.10, color=(255, 255, 255)):
     """ creates a mask that follows the polynomial from the bottom of the image
     towards to top, stopping at y_min """
     if y_min < 1 and y_max <= 1.0:
@@ -182,48 +184,52 @@ def threshold_binary_filter(img, s_thresh=(170, 255), h_thresh=(18, 24), sx_thre
     color_binary = cv2.cvtColor(color_binary, cv2.COLOR_RGB2BGR)
     return color_binary
 
+
+
 pl_avg = np.array([0., 0., 470.])
-pr_avg = np.array([0., 0., 810.])
+pr_avg = np.array([0., 0., 880.])
 r_curv_avg = 0
 MWA_MAX = 0.9
 mwa_alpha = 0.
 frame = 0
 
 def pipeline(img, debug=False):
+    """ pipeline to detect lane lines in images """
     global mwa_alpha, frame
     frame = frame + 1
     mwa_alpha = MWA_MAX - (MWA_MAX/(frame + 0.2))
 
     undistorted = cv2.undistort(img, cam_matrix, distortion, None, cam_matrix)
     top_down = ahead_to_top_down(undistorted)
-    cropped = crop(top_down, 0, 250, 1280, 680)
+    cropped = crop(top_down, 0, 50, 1280, 680)
 
     pl, pr, r_curv, mask_left, mask_right, masked_filtered_left, masked_filtered_right = \
         find_lines(cropped, debug)
 
     y_pos = cropped.shape[0] - 10
-    lateral_position = -1.0 * m_px_x * ((pl[0]*y_pos**2 + pl[1]*y_pos + pl[2] + \
-        pr[0]*y_pos**2 + pr[1]*y_pos + pr[2]) / 2.0 - cropped.shape[1]/2.0)
+    x_l = pl[0]*y_pos**2 + pl[1]*y_pos + pl[2]
+    x_r = pr[0]*y_pos**2 + pr[1]*y_pos + pr[2]
+    lateral_position = -1.0 * m_px_x * ((x_l + x_r) / 2.0 - cropped.shape[1]/2.0)
 
     polys = np.zeros_like(cropped)
     iu.draw_polyfit(polys, pl, color=[255, 0, 0], width=19)
     iu.draw_polyfit(polys, pr, color=[0, 0, 255], width=19)
     iu.fill_between_polys(polys, pl, pr)
     polys_full = np.zeros_like(top_down)
-    drop_poly_top = 150
-    polys_full[250 + drop_poly_top:680] = polys[drop_poly_top:]
+    drop_poly_top = 50
+    polys_full[50 + drop_poly_top:680] = polys[drop_poly_top:]
     polys_ahead = top_down_to_ahead(polys_full)
     undistorted = cv2.addWeighted(polys_ahead, 0.7, undistorted, 1.0, 1.4)
 
-    overlay_box = np.copy(undistorted)
-    cv2.rectangle(overlay_box, (0, 0), (1280, 86+20), (0, 0, 0), thickness=-1)
-    undistorted = cv2.addWeighted(overlay_box, 0.6, undistorted, 0.4, 0)
-
-    inset_w = 256
-    inset_h = 86
+    inset_w = 320
+    inset_h = 107
     margin = 10
-    x_start = 100
+    x_start = 0
     inset_size = (inset_w, inset_h)
+
+    overlay_box = np.copy(undistorted)
+    cv2.rectangle(overlay_box, (0, 0), (1280, inset_h + 20), (0, 0, 0), thickness=-1)
+    undistorted = cv2.addWeighted(overlay_box, 0.6, undistorted, 0.4, 0)
 
     overlay = np.copy(undistorted)
     masks = cv2.resize(cv2.addWeighted(mask_left, 0.5, mask_right, 0.5, 0), inset_size)
