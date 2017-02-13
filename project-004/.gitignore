@@ -1,4 +1,4 @@
-*.png
 output
 *.mp4
+calib_distorted.jpg
 

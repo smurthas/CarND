@@ -35,19 +35,6 @@ def create_perspective_transforms():
 
 M_ahead_to_top_down, M_top_down_to_ahead = create_perspective_transforms()
 
-
-def get_chessboard_corners_corners(corners, nx=9, ny=6):
-    """ returns the chessboard corners as src and dst arrays """
-    corners = np.reshape(corners, (ny, nx, 1, 2))
-    src = np.float32([corners[0, 0], corners[0, nx-1], corners[ny-1, nx-1], corners[ny-1, 0]])
-    x1 = corners[0, 0][0][0]
-    y1 = corners[0, 0][0][1]
-    x2 = corners[ny-1, nx-1][0][0]
-    y2 = (x2 - x1) / nx * ny + y1
-    dst = np.float32([[x1, y1], [x2, y1], [x2, y2], [x1, y2]])
-
-    return src, dst
-
 def warp_perspective(img, transform):
     img_size = (img.shape[1], img.shape[0])
     warped = cv2.warpPerspective(img, transform, img_size, flags=cv2.INTER_LINEAR)
@@ -112,6 +99,7 @@ def find_lines(img, debug=False):
     r_curv_avg = r_curv_avg*mwa_alpha + (r_curv_l + r_curv_r)/2.*(1.-mwa_alpha)
 
     if debug:
+        cv2.imwrite('frame_' + str(frame) + '_filtered.png', cv2.cvtColor(filtered, cv2.COLOR_RGB2BGR))
         alpha = 0.8
         img = cv2.addWeighted(masked_filtered_left, alpha, img, 1., 0)
         img = cv2.addWeighted(masked_filtered_right, alpha, img, 1., 0)
@@ -119,10 +107,16 @@ def find_lines(img, debug=False):
         img = cv2.addWeighted(mask_left, 0.1, img, 1., 0)
         img = cv2.addWeighted(mask_right, 0.1, img, 1., 0)
 
+        masks = cv2.addWeighted(mask_left, 0.5, mask_right, 0.5, 0)
+        filtered_m = cv2.addWeighted(masked_filtered_left, 0.5, masked_filtered_right, 0.5, 0)
+        filtered_m = cv2.addWeighted(filtered_m, 0.7, masks, 0.2, 0)
+        iu.draw_polyfit(filtered_m, pl_avg)
+        iu.draw_polyfit(filtered_m, pr_avg)
+        cv2.imwrite('frame_' + str(frame) + '_multi.png', cv2.cvtColor(filtered_m, cv2.COLOR_RGB2BGR))
+
     return pl_avg, pr_avg, r_curv_avg, mask_left, mask_right, masked_filtered_left, masked_filtered_right
 
 def threshold_binary_filter(img, s_thresh=(170, 255), h_thresh=(18, 24), sx_thresh=(20, 100)):
-#def threshold_binary_filter(img, s_thresh=(120, 255), h_thresh=(10, 34), sx_thresh=(10, 150)):
     """ create a binary image from a combination of the saturation and hue
     channels, as well as a sobel_x threshold """
 
@@ -227,6 +221,11 @@ def pipeline(img, debug=False):
 
     undistorted = cv2.addWeighted(overlay, 0.9, undistorted, 0.1, 0)
 
+    if debug:
+        cv2.imwrite('frame_' + str(frame) + '_undist.png', cv2.cvtColor(undistorted, cv2.COLOR_RGB2BGR))
+        cv2.imwrite('frame_' + str(frame) + '_dist.png', cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+        cv2.imwrite('frame_' + str(frame) + '_top_down.png', cv2.cvtColor(top_down, cv2.COLOR_RGB2BGR))
+
     return undistorted
 
 def pipeline_debug(image):
@@ -247,5 +246,6 @@ def process_video(in_filename, out_filename, debug=False):
     clip.write_videofile(out_filename, audio=False)
 
 calib_img, c_corners, cam_matrix, distortion = iu.calculate_calibration(sys.argv[1])
+cv2.imwrite('calib_undistored.png', cv2.undistort(cv2.imread(sys.argv[1]), cam_matrix, distortion, None, cam_matrix))
 
 process_video(sys.argv[2], sys.argv[3])
