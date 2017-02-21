@@ -1,3 +1,6 @@
 __pycache__
 *.mp4
 data
+*.p
+archive_models
+videos_archive
