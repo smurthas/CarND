@@ -30,9 +30,12 @@ def draw_boxes(img, bboxes, color=(0, 0, 255), thick=3):
 
 tracker = VehicleTracker()
 overlay = HUDOverlay()
+frame_num = -1
 
 def pipeline(img):
     """ pipeline to detect lane lines in images """
+    global frame_num
+    frame_num += 1
     detections = tracker.detect_vehicles(img)
     img = draw_boxes(img, detections)
     windows_img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
@@ -41,20 +44,26 @@ def pipeline(img):
         windows_img = draw_boxes(windows_img, windows, color=(i, 255, 255))
         i += 180/len(tracker.windows_sets)
     windows_img = cv2.cvtColor(windows_img, cv2.COLOR_HSV2RGB)
-    heat_map = np.ndarray.astype(np.dstack((tracker.heat_map*16,
-                                            tracker.heat_map*16,
-                                            tracker.heat_map*16)), np.uint8)
-    #print(type(heat_map), type(img), heat_map.shape, img.shape)
+    heat_map = np.ndarray.astype(np.dstack((tracker.heat_map*36,
+                                            tracker.heat_map*36,
+                                            tracker.heat_map*36)), np.uint8)
     heat_map = cv2.addWeighted(img, 0.7, heat_map, 1.0, 0.)
     heat_map_w_boxes = draw_boxes(heat_map, tracker.hot_windows, color=255)
     hud_imgs = [heat_map_w_boxes,
-                tracker.thresholded_heatmap*16.,
+                tracker.thresholded_heatmap*36.,
                 windows_img]
                 #tracker.labels_map*80.]
-    texts = ['HM Alpha: %.2f' % tracker.heat_map_alpha,
-             'HM Tresh: %.2f' % tracker.heat_map_threshold,
-             'Windows: %d, %d' %(len(tracker.windows_sets), len(tracker.windows))
-            ]
+    texts = [
+        'Frame: %d'%frame_num,
+        'HM: a=%.2f, t=%.2f'%(tracker.heat_map_alpha, tracker.heat_map_threshold),
+        'Win: tot=%d, hot=%d' %(len(tracker.windows), len(tracker.hot_windows)),
+        'Col %s %s %d'%(tracker.clf.color_space,
+                        tracker.clf.bin_spatial_size,
+                        tracker.clf.color_hist_nbins),
+        'Hog px:%d cl:%d or:%d'%(tracker.clf.hog_pix_per_cell,
+                                 tracker.clf.hog_cell_per_block,
+                                 tracker.clf.hog_orient)
+        ]
     img = overlay.add_to(img, hud_imgs, texts, 0.5)
     #img = cv2.addWeighted(img, 1.0, labels, 1.0, 0.)
     return img
@@ -88,25 +97,25 @@ def train(classifier_file):
         y.append(1)
         features.append(cv2.flip(im, flipCode=1))
         y.append(1)
-        zm = cv2.resize(im, (88, 88))
-        features.append(zm[0:64, 0:64])
+        #zm = cv2.resize(im, (88, 88))
+        #features.append(zm[0:64, 0:64])
         #features.append(zm[12:76, 0:64])
-        features.append(zm[24:88, 0:64])
-        y.append(1)
+        #features.append(zm[24:88, 0:64])
         #y.append(1)
-        y.append(1)
-        features.append(zm[0:64, 12:76])
+        #y.append(1)
+        #y.append(1)
+        #features.append(zm[0:64, 12:76])
         #features.append(zm[12:76, 12:76])
-        features.append(zm[24:88, 12:76])
-        y.append(1)
+        #features.append(zm[24:88, 12:76])
         #y.append(1)
-        y.append(1)
-        features.append(zm[0:64, 24:88])
+        #y.append(1)
+        #y.append(1)
+        #features.append(zm[0:64, 24:88])
         #features.append(zm[12:76, 24:88])
-        features.append(zm[24:88, 24:88])
-        y.append(1)
+        #features.append(zm[24:88, 24:88])
         #y.append(1)
-        y.append(1)
+        #y.append(1)
+        #y.append(1)
 
     for noncar in noncars:
         features.append(cv2.cvtColor(cv2.imread(noncar), cv2.COLOR_BGR2RGB))

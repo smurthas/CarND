@@ -23,6 +23,9 @@ class VehicleClassifier:
 
         self.scaler = StandardScaler()
 
+        self.train_sample_count = 0
+        self.feature_vector_length = 0
+
     # Define a function to compute binned color features
     def bin_spatial(self, img):
         # Use cv2.resize().ravel() to create the feature vector
@@ -107,7 +110,9 @@ class VehicleClassifier:
         for img in X_train:
             X_train_features.append(self.extract_features(img))
 
-        print('Feature Vector Length:', len(X_train_features[0]))
+        self.train_sample_count += len(X_train_features)
+        self.feature_vector_length = len(X_train_features[0])
+        print('Feature Vector Length:', self.feature_vector_length)
         self.scaler = self.scaler.fit(X_train_features)
         self.clf.fit(self.scaler.transform(X_train_features), y_train)
 
@@ -122,3 +127,11 @@ class VehicleClassifier:
         features = self.scaler.transform([self.extract_features(img)])
         pred = self.clf.predict(features)[0]
         return pred == 1 and self.clf.decision_function(features)[0] >= min_dec
+
+    def __str__(self):
+        self_str = 'color_space=%s\nbin_spatial_size=%s\ncolor_hist_nbins=%d\n\
+hog_pix_per_cell=%d\nhog_cell_per_block=%d\nhog_orient=%d\nhog_channel=%s\ntrain_sample_count=%d'%\
+            (self.color_space, self.bin_spatial_size, self.color_hist_nbins,
+             self.hog_pix_per_cell, self.hog_cell_per_block, self.hog_orient,
+             self.hog_channel, 0)#self.train_sample_count)
+        return self_str

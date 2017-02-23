@@ -20,6 +20,8 @@ def box_from_bbox(bbox):
     return box(x1, y1, x2, y2)
 
 def percent_intersection(base_box, others):
+    """ return the fraction of the base_box that is overlapped by the union of
+    the others """
     bbox = box_from_bbox(base_box)
     union = box(0, 0, 0, 0)
     for other in others:
@@ -53,6 +55,7 @@ def draw_boxes(img, bboxes, color=(0, 0, 255), thick=2):
 
 
 def slice_out_bboxes(img, bboxes):
+    """ slices out bounding boxes from an image and returns them as an array """
     imgs = []
     for bbox in bboxes:
         x1 = max(min([bbox[0][0], bbox[1][0]]), 0)
@@ -66,7 +69,7 @@ def slice_out_bboxes(img, bboxes):
 
 clf_file = sys.argv[1]
 out_dir = sys.argv[2]
-min_dec = sys.argv[3]
+min_dec = float(sys.argv[3])
 data_files = sys.argv[4:]
 print(clf_file)
 print(data_files)
@@ -103,21 +106,29 @@ for frame in data:
     precision = 0.
 
     if len(gt) > 0:
-        recall = boxes_covered(gt, tracker.hot_windows)
+        #recall = boxes_covered(gt, tracker.hot_windows)
+        recall = boxes_covered(gt, detections)
         recalls.append(recall)
 
+    #if len(tracker.hot_windows) > 0:
     if len(detections) > 0:
         if len(gt) < 1:
             gt = []
 
-        precision = boxes_covered(tracker.hot_windows, gt)
+        #precision = boxes_covered(tracker.hot_windows, gt)
+        precision = boxes_covered(detections, gt)
         precisions.append(precision)
 
-    print('frame %d, hot windows: %d, recall: %f, precision %f'%
-          (num, len(tracker.hot_windows), recall, precision))
+    print('frame %d, hot windows: %d, recall: %f, precision: %f, avg recall: %f, avg precision: %f'%
+          (num, len(tracker.hot_windows), recall, precision, np.average(recalls), np.average(precisions)))
 
     img_data = draw_boxes(img_data, gt, color=(0, 255, 0))
     img_data = draw_boxes(img_data, tracker.hot_windows, color=(255, 0, 0))
+    img_data = draw_boxes(img_data, detections, color=(255, 255, 0))
+    i = 0
+    for win_set in tracker.windows_sets:
+        img_data = draw_boxes(img_data, win_set, color=(0, i, 255), thick=1)
+        i += int(254/(len(tracker.windows_sets)-1))
     img_data = cv2.cvtColor(img_data, cv2.COLOR_RGB2BGR)
     cv2.imwrite(out_dir + '/' + str(num) + '.png', img_data)
 

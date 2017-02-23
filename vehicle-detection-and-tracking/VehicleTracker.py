@@ -1,14 +1,21 @@
 """ Class to detect vehicles over multiple frames in a video """
+#from math import pow
 
 import numpy as np
 from VehicleClassifier import VehicleClassifier
 from scipy.ndimage.measurements import label
 
+
+def bounded_point(x, y, shape=(1280, 720)):
+    x = min(max(int(x), 0), shape[0])
+    y = min(max(int(y), 0), shape[1])
+    return (x, y)
+
 class VehicleTracker:
     """ Class to detect vehicles over multiple frames in a video """
-    def __init__(self, y_min=0.55, heat_map_alpha=0.9, heat_map_threshold=3.5):
+    def __init__(self, y_min=0.55, heat_map_alpha=0.9, heat_map_threshold=0.5):
         self.y_min = y_min
-        self.clf = VehicleClassifier(color_space='YUV')
+        self.clf = VehicleClassifier()
         self.windows = []
         self.windows_sets = []
         self.hot_windows = []
@@ -21,6 +28,32 @@ class VehicleTracker:
         self.thresholded_heatmap = None
         self.labels_map = None
         self.labels_count = 0
+
+    def slide_windows_linear(self, point_close, point_far,
+                             close_size=(256, 256), far_size=(88, 88),
+                             n_windows=12, power_factor=0.7):
+        """ slide windows along a line, with decreasing size """
+        x_fac = (point_far[0] - point_close[0]) / pow(n_windows-1, power_factor)
+        y_fac = (point_far[1] - point_close[1]) / pow(n_windows-1, power_factor)
+        #x_step = (point_far[0] - point_close[0]) / (n_windows-1)
+        #y_step = (point_far[1] - point_close[1]) / (n_windows-1)
+
+        x_size_step = (far_size[0] - close_size[0]) / (n_windows-1)
+        y_size_step = (far_size[1] - close_size[1]) / (n_windows-1)
+
+        these_windows = []
+        for i in range(n_windows):
+            pf = pow(i, power_factor)
+            #center = (point_close[0] + (x_step*i), point_close[1] + (y_step*i))
+            center = (point_close[0] + (pf*x_fac), point_close[1] + (pf*y_fac))
+            extent = ((close_size[0] + (x_size_step*i))/2.,
+                      (close_size[1] + (y_size_step*i))/2.)
+            p1 = bounded_point(center[0] - extent[0], center[1] - extent[1])
+            p2 = bounded_point(center[0] + extent[0], center[1] + extent[1])
+            #print(i, center, extent, p1, p2)
+            self.windows.append((p1, p2))
+            these_windows.append((p1, p2))
+        self.windows_sets.append(these_windows)
 
     def slide_window(self, img, x_start_stop=None, y_start_stop=None,
                      xy_window=(128, 128), xy_overlap=(0.7, 0.7)):
@@ -84,37 +117,27 @@ class VehicleTracker:
         for box in self.hot_windows:
             self.frame_heatmap[box[0][1]:box[1][1], box[0][0]:box[1][0]] += 1
 
-    def detect_vehicles(self, img, min_dec=1.0):
+    def detect_vehicles(self, img, min_dec=0.35):
         """ detects vehicles in an image """
-        first_y = self.y_min*img.shape[0]
         # Initialize a list to append window positions to
         self.windows = []
         self.windows_sets = []
 
-        self.slide_window(img, y_start_stop=[first_y, first_y + 170], xy_window=(256, 256))
-        y_start_stop = [first_y+60, first_y+60 + 170]
-        self.slide_window(img, x_start_stop=[0, img.shape[1]*0.3],
-                          y_start_stop=y_start_stop, xy_window=(256, 256))
-        self.slide_window(img, x_start_stop=[img.shape[1]*0.7, None],
-                          y_start_stop=y_start_stop, xy_window=(256, 256))
+        # starting at far-right, moving inwards
+        self.slide_windows_linear((1280, 440), (940, 435), close_size=(120, 120))
+        self.slide_windows_linear((1280, 475), (910, 435), close_size=(180, 180))
+        self.slide_windows_linear((1280, 520), (815, 435), close_size=(280, 280))
+        self.slide_windows_linear((960, 510), (755, 435), close_size=(220, 220), n_windows=10)
 
-        self.slide_window(img, y_start_stop=[first_y-20, first_y-20 + 130], xy_window=(192, 192))
-        self.slide_window(img, x_start_stop=[0, img.shape[1]*0.4],
-                          y_start_stop=[first_y+37, first_y+37 + 130],
-                          xy_window=(192, 192))
-        self.slide_window(img, x_start_stop=[img.shape[1]*0.6, None],
-                          y_start_stop=[first_y+37, first_y+37 + 130],
-                          xy_window=(192, 192))
+        # center
+        self.slide_windows_linear((640, 500), (640, 430), close_size=(400, 400), n_windows=6)
 
-        self.slide_window(img, x_start_stop=[0.1*img.shape[1], 0.9*img.shape[1]],
-                          y_start_stop=[first_y-20, first_y-20 + 137], xy_window=(136, 136))
-        self.slide_window(img, x_start_stop=[0.1*img.shape[1], 0.9*img.shape[1]],
-                          y_start_stop=[first_y-20, first_y-20 + 137], xy_window=(136, 136))
+        # from center, moving left
+        self.slide_windows_linear((320, 510), (525, 435), close_size=(220, 220), n_windows=10)
+        self.slide_windows_linear((0, 520), (465, 435), close_size=(280, 280))
+        self.slide_windows_linear((0, 475), (370, 435), close_size=(180, 180))
+        self.slide_windows_linear((0, 440), (340, 435), close_size=(120, 120))
 
-        y_start_stop = [first_y, first_y+155]
-        self.slide_window(img, x_start_stop=[0.18*img.shape[1], 0.82*img.shape[1]],
-                          y_start_stop=y_start_stop, xy_window=(104, 104))
-        #print(len(self.windows))
 
         self.search_windows(img, min_dec)
         #print('after search, HW: %d'%len(self.hot_windows))
@@ -143,7 +166,15 @@ class VehicleTracker:
             y2 = max(label_coords[0])
             bbox = ((x1, y1), (x2, y2))
             #print(bbox)
-            self.detections.append(bbox)
+            x = x2 - x1
+            y = y2 - y1
+            area = x * y
+            aspect_ratio = max(x, y) / min(x, y)
+
+            if area > 1024 and aspect_ratio < 2.2:
+                self.detections.append(bbox)
+            else:
+                print('rejected bbox:', bbox, x, y, area, aspect_ratio)
 
         return self.detections
 
