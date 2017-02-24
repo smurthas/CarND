@@ -93,8 +93,8 @@ various classifier parameters. I found this very helpful when cycling through
 many different configurations as it was otherwise had to remember which test
 video was which.
 
-![example frame 1][example-frame-1]
-![example frame 2][example-frame-2]
+![Example Frame 1][image2]
+![Example Frame 2][image3]
 
 
 ### Video Implementation
