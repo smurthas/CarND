@@ -10,14 +10,10 @@ The goals / steps of this project are the following:
 * Estimate a bounding box for vehicles detected.
 
 [//]: # (Image References)
+[image0]: ./assets/recall-vs-precision.png
 [image1]: ./assets/windows.png
 [image2]: ./assets/example-frame-1.png
 [image3]: ./assets/example-frame-2.png
-[image4]: ./examples/sliding_window.jpg
-[image5]: ./examples/bboxes_and_heat.png
-[image6]: ./examples/labels_map.png
-[image7]: ./examples/output_bboxes.png
-[video1]: ./project_video.mp4
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/513/view) Points
 ###Here I will consider the rubric points individually and describe how I addressed each point in my implementation.
@@ -40,6 +36,16 @@ I explored using different values of pixels per cell, cells per block,
 orientations, and channels. For each, I varied it across a range (while holding
 other params constant) and recorded precision and recall values by testing it on
 ground truth of the project video that I captured by hand.
+
+Here is a plot of some of the recall vs. precision curves of various YUV and and
+HSV configurations. Each line is one configuration, with a different threshold
+for the returned value of the `decision_function` of the Linear SVM classifier.
+Lower thresholds result in higher recall, but lower precision. As can be seen in
+the plot, the YUV space performed drastically better than HSV, jittering the
+training images made things worse, and finally, YUV with a horizontal flip of
+the training data was the best result.
+
+![Recall vs. Precision of various configurations][image0]
 
 I found the following values provided a useful balance of precision and recall,
 ultimately resulting in a 94% precision and 93% recall on the project video. I
@@ -106,29 +112,12 @@ time and then thresholds that averaged map to identify vehicle positions.
 It then uses `scipy.ndimage.measurements.label()` to identify individual blobs
 in the heatmap and rejects those that are not square-ish or are too small.
 
->>>>>>
-TODO: FINISH ME STARTING HERE
->>>>>>
-
-Here's an example result showing the heatmap from a series of frames of video, the result of `scipy.ndimage.measurements.label()` and the bounding boxes then overlaid on the last frame of video:
-
-### Here are six frames and their corresponding heatmaps:
-
-![alt text][image5]
-
-### Here is the output of `scipy.ndimage.measurements.label()` on the integrated heatmap from all six frames:
-![alt text][image6]
-
-### Here the resulting bounding boxes are drawn onto the last frame in the series:
-![alt text][image7]
-
-
-
----
+The example frames above show the output of the hot windows and heatmap as well
+as the final bounding boxes of the labels.
 
 ###Discussion
 
 ####1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.
+
 
