@@ -119,5 +119,44 @@ as the final bounding boxes of the labels.
 
 ####1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
+*Problems and Issues*
 
+The main issue I had was one of parameter tuning. At first, I was doing it by
+gut sense and eye-balling the output on the project video. This had a few
+problems, 1. There were many parameters to tune, so changing one by some amount,
+did not always have a meaningful effect, and 2. It took many minutes to simply
+output the result of the change, and 3. The result was purely qualitative in
+that it was just a video that I inspected manually.
+
+To solve these issues, I decided to create a ground truth file containing the
+location and size of the bounding boxes of vehicles in the project video for
+every frame. With this in hand, I was able to run my algorithm against the
+entire project video and actually get a quantitative result in the form of
+recall and precision. From there, I could run 4-5 parallel tests that explored
+the sensitivity of the algorithm to one parameter at a time, always getting a
+quantitative result. This enabled me to quickly identify that YUV was the
+optimal color space, HOG helped a lot, and more oritentation and more color
+histogram bins did not help much (and sometime hurt).
+
+With nearly-optimal classifier parameters in hand, I moved on to the detection
+and tracking parameters, such as the sliding window locations and the heatmap
+threshold. Again, these were easy to tune against ground truth since I could
+vary them and get quantitative results.
+
+*Pipeline weaknesses*
+
+My pipeline is quite sensitive to camera position and orientation, so driving up
+a hill, or bouncing over bumps in the road for more than a few seconds would
+likely results in some missed detections.
+
+It also does not detect vehicles that are more than a few car lengths ahead.
+
+Adding more detection windows would likely increase the algorithm's robustness
+in both of these areas. I chose not to do that, simply because it already runs
+only around 2.5 FPS on a modern Intel chip, so testing with 2-5x more windows
+would have taken MUCH more time.
+
+It also, almost certainly wouldn't work at night or in adverse weather
+conditions. It is quite possible that adding more diverse training data would
+improve the model's robustness to that.
 
