@@ -133,5 +133,5 @@ class VehicleClassifier:
 hog_pix_per_cell=%d\nhog_cell_per_block=%d\nhog_orient=%d\nhog_channel=%s\ntrain_sample_count=%d'%\
             (self.color_space, self.bin_spatial_size, self.color_hist_nbins,
              self.hog_pix_per_cell, self.hog_cell_per_block, self.hog_orient,
-             self.hog_channel, 0)#self.train_sample_count)
+             self.hog_channel, self.train_sample_count)
         return self_str
